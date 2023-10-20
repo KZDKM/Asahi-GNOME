@@ -1,0 +1,9 @@
+{
+  "name": "Asahi Notch Tool",
+  "description": "Macbook notch integration with GNOME desktop on asahi linux",
+  "uuid": "asahinotchtool@kzdkm.club",
+  "shell-version": [
+    "45"
+  ],
+  "session-modes": ["user", "unlock-dialog"]
+}
