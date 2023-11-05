@@ -1,0 +1,19 @@
+diff --git a/src/core/constraints.c b/src/core/constraints.c
+index 3fd05a103..5ac514af8 100644
+--- a/src/core/constraints.c
++++ b/src/core/constraints.c
+@@ -1344,6 +1344,14 @@ constrain_fullscreen (MetaWindow         *window,
+ 
+   monitor = info->entire_monitor;
+ 
++  if (abs(monitor.width / monitor.width - 1.54f) < 0.01f) {//window->monitor->is_primary) {//monitor.width == 3024 && monitor.height == 1964) { 
++    const float notch_y_ratio = 64.f / 1963.f;
++    int notch_padding_height = monitor.height * notch_y_ratio;
++
++    monitor.y += notch_padding_height;
++    monitor.height -= notch_padding_height;
++  }
++
+   get_size_limits (window, &min_size, &max_size);
+   too_big = !mtk_rectangle_could_fit_rect (&monitor, &min_size);
+   too_small = !mtk_rectangle_could_fit_rect (&max_size, &monitor);

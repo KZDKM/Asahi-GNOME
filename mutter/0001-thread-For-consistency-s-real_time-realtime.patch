@@ -1,0 +1,149 @@
+From 01c01a221a7dabb2382a44b71dcf06649ee193d6 Mon Sep 17 00:00:00 2001
+From: Ray Strode <rstrode@redhat.com>
+Date: Tue, 10 Oct 2023 14:35:46 -0400
+Subject: [PATCH 1/4] thread: For consistency, s/real_time/realtime/
+
+Most of the code writes "real-time" as "realtime" not "real_time".
+
+The only exception is one function `request_real_time_scheduling`.
+
+This commit changes that function for consistency.
+---
+ src/backends/native/meta-thread.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/src/backends/native/meta-thread.c b/src/backends/native/meta-thread.c
+index 08d01144d..93a84a8a5 100644
+--- a/src/backends/native/meta-thread.c
++++ b/src/backends/native/meta-thread.c
+@@ -175,62 +175,62 @@ get_rtkit_property (MetaDBusRealtimeKit1  *rtkit_proxy,
+ {
+   GDBusConnection *connection;
+   g_autoptr (GVariant) prop_value = NULL;
+   g_autoptr (GVariant) property_variant = NULL;
+ 
+   /* The following is a fall back path for a RTKit daemon that doesn't support
+    * org.freedesktop.DBus.Properties.GetAll. See
+    * <https://github.com/heftig/rtkit/pull/30>.
+    */
+   connection = g_dbus_proxy_get_connection (G_DBUS_PROXY (rtkit_proxy));
+   prop_value =
+     g_dbus_connection_call_sync (connection,
+                                  "org.freedesktop.RealtimeKit1",
+                                  "/org/freedesktop/RealtimeKit1",
+                                  "org.freedesktop.DBus.Properties",
+                                  "Get",
+                                  g_variant_new ("(ss)",
+                                                 "org.freedesktop.RealtimeKit1",
+                                                 property_name),
+                                  G_VARIANT_TYPE ("(v)"),
+                                  G_DBUS_CALL_FLAGS_NO_AUTO_START,
+                                  -1, NULL, error);
+   if (!prop_value)
+     return NULL;
+ 
+   g_variant_get (prop_value, "(v)", &property_variant);
+   return g_steal_pointer (&property_variant);
+ }
+ 
+ static gboolean
+-request_real_time_scheduling (MetaThread  *thread,
+-                              GError     **error)
++request_realtime_scheduling (MetaThread  *thread,
++                             GError     **error)
+ {
+   MetaThreadPrivate *priv = meta_thread_get_instance_private (thread);
+   g_autoptr (MetaDBusRealtimeKit1) rtkit_proxy = NULL;
+   g_autoptr (GError) local_error = NULL;
+   int64_t rttime;
+   struct rlimit rl;
+   uint32_t priority;
+ 
+   rtkit_proxy =
+     meta_dbus_realtime_kit1_proxy_new_for_bus_sync (G_BUS_TYPE_SYSTEM,
+                                                     G_DBUS_PROXY_FLAGS_DO_NOT_CONNECT_SIGNALS |
+                                                     G_DBUS_PROXY_FLAGS_DO_NOT_AUTO_START,
+                                                     "org.freedesktop.RealtimeKit1",
+                                                     "/org/freedesktop/RealtimeKit1",
+                                                     NULL,
+                                                     &local_error);
+   if (!rtkit_proxy)
+     {
+       g_dbus_error_strip_remote_error (local_error);
+       g_propagate_prefixed_error (error, g_steal_pointer (&local_error),
+                                   "Failed to acquire RTKit D-Bus proxy: ");
+       return FALSE;
+     }
+ 
+   priority = meta_dbus_realtime_kit1_get_max_realtime_priority (rtkit_proxy);
+   if (priority == 0)
+     {
+       g_autoptr (GVariant) priority_variant = NULL;
+ 
+       priority_variant = get_rtkit_property (rtkit_proxy,
+@@ -286,61 +286,61 @@ request_real_time_scheduling (MetaThread  *thread,
+ 
+   return TRUE;
+ }
+ 
+ static gpointer
+ thread_impl_func (gpointer user_data)
+ {
+   MetaThread *thread = META_THREAD (user_data);
+   MetaThreadPrivate *priv = meta_thread_get_instance_private (thread);
+   MetaThreadImpl *impl = priv->impl;
+   MetaThreadImplRunFlags run_flags = META_THREAD_IMPL_RUN_FLAG_NONE;
+   GMainContext *thread_context = meta_thread_impl_get_main_context (impl);
+ #ifdef HAVE_PROFILER
+   MetaContext *context = meta_backend_get_context (priv->backend);
+   MetaProfiler *profiler = meta_context_get_profiler (context);
+ #endif
+ 
+   g_mutex_lock (&priv->kernel.init_mutex);
+   g_mutex_unlock (&priv->kernel.init_mutex);
+ 
+   g_main_context_push_thread_default (thread_context);
+ 
+ #ifdef HAVE_PROFILER
+   meta_profiler_register_thread (profiler, thread_context, priv->name);
+ #endif
+ 
+   if (priv->wants_realtime)
+     {
+       g_autoptr (GError) error = NULL;
+ 
+-      if (!request_real_time_scheduling (thread, &error))
++      if (!request_realtime_scheduling (thread, &error))
+         {
+           g_warning ("Failed to make thread '%s' realtime scheduled: %s",
+                      priv->name, error->message);
+         }
+       else
+         {
+           g_message ("Made thread '%s' realtime scheduled", priv->name);
+           run_flags |= META_THREAD_IMPL_RUN_FLAG_REALTIME;
+         }
+     }
+ 
+   meta_thread_impl_run (impl, run_flags);
+ 
+ #ifdef HAVE_PROFILER
+   meta_profiler_unregister_thread (profiler, thread_context);
+ #endif
+ 
+   g_main_context_pop_thread_default (thread_context);
+ 
+   return GINT_TO_POINTER (TRUE);
+ }
+ 
+ typedef struct _WrapperSource
+ {
+   GSource base;
+ 
+   GMainContext *thread_main_context;
+ 
+   GPollFD fds[256];
+   gpointer fd_tags[256];
+-- 
+2.41.0
+

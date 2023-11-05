@@ -1,0 +1,65 @@
+From 6fe1b3145f840d39240046c0812b1406d23fe569 Mon Sep 17 00:00:00 2001
+From: Carlos Garnacho <carlosg@gnome.org>
+Date: Fri, 29 Sep 2023 13:14:14 +0200
+Subject: [PATCH] backends/native: Translate keycodes with
+ xkb_key_state_get_one_sym()
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+There's two aspects from its documentation
+(https://xkbcommon.org/doc/current/group__state.html#gae56031a8c1d48e7802da32f5f39f5738)
+affecting us here:
+
+1. "This function is similar to xkb_state_key_get_syms(), but intended for
+    users which cannot or do not want to handle the case where multiple
+    keysyms are returned (in which case this function is preferred)."
+
+   We are indeed in that field, and have been for a long time.
+
+2. "This function performs Capitalization Keysym Transformations."
+
+   This is unlike the xkb_key_get_syms() function that we use, and
+   convenient here for parity with X11 since it behaves exactly that
+   way.
+
+Fixes cases where the keysym for some keys is not properly capitalized
+when caps lock is toggled, due to the output of capslock+key being
+different from shift+key. An example of this is 'é' in french(azerty)
+layout (bound to the '2' key). Even though shift+2 outputs '2',
+capslock+é should output 'É'.
+
+Closes: https://gitlab.gnome.org/GNOME/mutter/-/issues/3058
+Part-of: <https://gitlab.gnome.org/GNOME/mutter/-/merge_requests/3306>
+---
+ src/backends/native/meta-xkb-utils.c | 7 +------
+ 1 file changed, 1 insertion(+), 6 deletions(-)
+
+diff --git a/src/backends/native/meta-xkb-utils.c b/src/backends/native/meta-xkb-utils.c
+index 1ec12a37bea..7f80cca2e2a 100644
+--- a/src/backends/native/meta-xkb-utils.c
++++ b/src/backends/native/meta-xkb-utils.c
+@@ -50,7 +50,6 @@ meta_key_event_new_from_evdev (ClutterInputDevice *device,
+ {
+   ClutterEvent *event;
+   xkb_keysym_t sym;
+-  const xkb_keysym_t *syms;
+   char buffer[8];
+   gunichar unicode_value;
+   ClutterModifierType modifiers;
+@@ -62,11 +61,7 @@ meta_key_event_new_from_evdev (ClutterInputDevice *device,
+    * upwards by 8. */
+   key = meta_xkb_evdev_to_keycode (key);
+ 
+-  n = xkb_key_get_syms (xkb_state, key, &syms);
+-  if (n == 1)
+-    sym = syms[0];
+-  else
+-    sym = XKB_KEY_NoSymbol;
++  sym = xkb_state_key_get_one_sym (xkb_state, key);
+ 
+   modifiers = xkb_state_serialize_mods (xkb_state, XKB_STATE_MODS_EFFECTIVE) |
+     button_state;
+-- 
+GitLab
+
