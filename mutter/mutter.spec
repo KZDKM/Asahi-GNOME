@@ -122,7 +122,7 @@ Requires: startup-notification
 Requires: dbus
 
 # Need common
-Requires: %{name}-common = %{version}-9.fc39
+Requires: %{name}-common = %{version}-9.asahi.fc39
 
 Recommends: mesa-dri-drivers%{?_isa}
 
